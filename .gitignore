@@ -1,0 +1,23 @@
+# Public repo: allow-list only. Everything is ignored unless re-included below,
+# so notes (Ads/GA4/Sheet IDs), apps-script (spam-filter token), PDFs, videos,
+# CSVs, backups and personal files can never be committed by accident.
+/*
+!/.gitignore
+!/.vercelignore
+!/index.html
+!/puja.html
+!/robots.txt
+!/sitemap.xml
+!/llms.txt
+!/57a72f92c851383d31f67971cf57029db8a26b5ab9a91c1d.txt
+!/favicon.ico
+!/favicon.svg
+!/favicon-16.png
+!/favicon-32.png
+!/favicon-puja.svg
+!/apple-touch-icon.png
+!/nesthomes-logo.jpg
+!/deploy.sh
+!/ping-search.sh
+!/images/
+.DS_Store

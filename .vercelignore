@@ -1,0 +1,30 @@
+*.pdf
+*.mp4
+*.zip
+*.txt
+*.ini
+nesthomes-landing.html
+NestHomes Landing Page (standalone).html
+seo_adder.py
+.vercel
+
+# Internal working files — must never be publicly served.
+# SESSION-LOG / CHECKLIST contain Ads + GA4 account IDs, the Sheet ID, the
+# Apps Script deployment ID, and a description of the lead-form spam defenses
+# (honeypot field name, time trap, token) — publishing them defeats the filter.
+*.md
+*.csv
+*.bak
+*.bak-*
+*.html.bak
+*.html.bak-*
+apps-script
+Youtube
+.DS_Store
+
+# Re-included AFTER the blanket *.txt rule above (which exists to keep the
+# htaccess / user.ini backups private). These three must be publicly served or
+# search engines and AI crawlers can't discover anything.
+!robots.txt
+!llms.txt
+!57a72f92c851383d31f67971cf57029db8a26b5ab9a91c1d.txt
