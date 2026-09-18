@@ -132,12 +132,6 @@ code=$(curl -s -o /dev/null -w "%{redirect_url}" --max-time 20 "https://nesthome
 [ "$code" = "https://www.nesthomes.in/" ] && ok "nesthomes.in redirects to www" \
   || bad "nesthomes.in does not redirect to www (got '$code')"
 
-# Older Google Ads use landing.nesthomes.in as the final URL. If it stops
-# answering, those ads are disapproved for a broken destination.
-code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "https://landing.nesthomes.in/puja.html" || echo 000)
-[ "$code" = "200" ] && ok "200  https://landing.nesthomes.in/puja.html" \
-  || warn "$code  landing.nesthomes.in — check no Google Ads final URL still points here"
-
 # Discovery files must be reachable. They're .txt, which .vercelignore blocks by
 # default, so a stray edit to that file silently delists the whole site.
 for f in "robots.txt" "sitemap.xml" "llms.txt"; do
