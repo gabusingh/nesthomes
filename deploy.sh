@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
-# NEST HOMES — deploy to production (www.nesthomes.in + landing.nesthomes.in)
+# NEST HOMES — publish to production (www.nesthomes.in)
 #
-#   ./deploy.sh          deploy
-#   ./deploy.sh --check  verify only, don't deploy
+#   ./deploy.sh                  check, commit, push, verify
+#   ./deploy.sh "what changed"   same, with your own commit message
+#   ./deploy.sh --check          checks only, don't publish
 #
-# `vercel` is not on PATH on this machine, so we go through npx.
+# Publishing is a git push. The "Nest Homes" Vercel account builds from
+# github.com/gabusingh/nesthomes on every push to main. Don't use
+# `vercel --prod` here: the Vercel CLI on this Mac is logged into the OLD
+# account, which no longer serves the domain.
 
 set -euo pipefail
 cd "$(dirname "$0")"
+
+MSG="Update site $(date '+%Y-%m-%d %H:%M')"
+if [ -n "${1:-}" ] && [ "$1" != "--check" ]; then MSG="$1"; fi
 
 GREEN=$'\033[0;32m'; RED=$'\033[0;31m'; YEL=$'\033[0;33m'; NC=$'\033[0m'
 ok(){ echo "${GREEN}  ok${NC}  $1"; }
@@ -28,6 +35,13 @@ for pat in '*.md' '*.csv' '*.bak' 'apps-script'; do
   grep -qxF "$pat" .vercelignore && ok ".vercelignore blocks $pat" \
     || bad ".vercelignore is MISSING '$pat' — internal files would go public"
 done
+
+# 2b. The GitHub repo is PUBLIC. .gitignore is an allow-list, but check what is
+#     tracked and what `git add -A` would pick up before anything is pushed.
+LEAK=$( { git ls-files; git add -A --dry-run | sed "s/^add '\(.*\)'$/\1/"; } \
+        | grep -E '\.(md|csv|pdf|zip|mp4|ini)$|\.bak|^apps-script/|^Youtube/|htaccess' | sort -u || true)
+if [ -z "$LEAK" ]; then ok "no private files headed for the public repo"
+else bad "private files would go public on GitHub: $(echo $LEAK)"; fi
 
 # 3. Cheap HTML sanity checks on the landing page
 if grep -q '__LOGO__' puja.html; then bad "puja.html has an unsubstituted __LOGO__ placeholder"; else ok "no placeholders"; fi
@@ -77,18 +91,52 @@ echo "${GREEN}Pre-flight passed.${NC}"
 if [ "${1:-}" = "--check" ]; then echo "(--check: stopping before deploy)"; exit 0; fi
 
 echo
-echo "── Deploying ──────────────────────────────────"
-npx vercel --prod --yes
+echo "── Publishing ─────────────────────────────────"
+git add -A
+if git diff --cached --quiet; then
+  ok "no new changes to commit"
+else
+  git commit -q -m "$MSG"
+  ok "committed: $MSG"
+fi
+if [ -n "$(git log origin/main..main --oneline 2>/dev/null)" ]; then
+  git push -q origin main
+  ok "pushed to GitHub — Vercel is building"
+else
+  ok "GitHub already up to date"
+fi
+
+echo
+echo "── Waiting for Vercel ─────────────────────────"
+# Vercel's ETag for a static file is its MD5, so the new build is live exactly
+# when both pages' ETags match the local files.
+etag(){ curl -sI --max-time 15 "$1" | awk 'tolower($1)=="etag:"{gsub(/["\r]/,"",$2); print $2}'; }
+WANT_IDX=$(md5 -q index.html); WANT_PUJA=$(md5 -q puja.html)
+LIVE=0
+for _ in $(seq 1 36); do   # up to 3 minutes
+  if [ "$(etag https://www.nesthomes.in/)" = "$WANT_IDX" ] && \
+     [ "$(etag https://www.nesthomes.in/puja.html)" = "$WANT_PUJA" ]; then LIVE=1; break; fi
+  sleep 5
+done
+[ "$LIVE" -eq 1 ] && ok "live site matches this folder" \
+  || bad "live site still differs after 3 min — check Deployments in the Nest Homes Vercel account"
 
 echo
 echo "── Verifying live ─────────────────────────────"
-sleep 3
 for url in "https://www.nesthomes.in/puja.html" \
-           "https://landing.nesthomes.in/puja.html" \
            "https://www.nesthomes.in/"; do
   code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$url" || echo 000)
   [ "$code" = "200" ] && ok "$code  $url" || bad "$code  $url"
 done
+code=$(curl -s -o /dev/null -w "%{redirect_url}" --max-time 20 "https://nesthomes.in/" || true)
+[ "$code" = "https://www.nesthomes.in/" ] && ok "nesthomes.in redirects to www" \
+  || bad "nesthomes.in does not redirect to www (got '$code')"
+
+# Older Google Ads use landing.nesthomes.in as the final URL. If it stops
+# answering, those ads are disapproved for a broken destination.
+code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "https://landing.nesthomes.in/puja.html" || echo 000)
+[ "$code" = "200" ] && ok "200  https://landing.nesthomes.in/puja.html" \
+  || warn "$code  landing.nesthomes.in — check no Google Ads final URL still points here"
 
 # Discovery files must be reachable. They're .txt, which .vercelignore blocks by
 # default, so a stray edit to that file silently delists the whole site.
